@@ -1,12 +1,14 @@
 const fetch = require("node-fetch");
 
-const NOTION_API_KEY = "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"; // Replace with your Notion API key
-const DATABASE_ID = "14e374aeac28804e99e9d12a0fff4203"; // Replace with your Notion Database ID
+const NOTION_API_KEY = process.env.NOTION_API_KEY; // Environment variable in Vercel
+const DATABASE_ID = process.env.DATABASE_ID; // Environment variable in Vercel
 
 export default async function handler(req, res) {
     const slug = req.query.slug; // Extract the slug from the URL
+
     if (!slug) {
-        res.redirect(301, "https://www.chadandmia.com"); // Redirect to homepage if no slug
+        console.log("Missing slug: Redirecting to homepage");
+        res.redirect(301, "https://www.chadandmia.com"); // Redirect to homepage if no slug is provided
         return;
     }
 
@@ -28,36 +30,20 @@ export default async function handler(req, res) {
         });
 
         const notionData = await notionResponse.json();
-        const record = notionData.results[0];
 
-        if (record) {
-            const longUrl = record.properties["Long URL"].url; // Fetch the long URL
-            const clickCount = record.properties["Click Count"]?.number || 0; // Fetch the current click count (default to 0)
+        // Check if a matching slug exists in the database
+        if (notionData.results.length > 0) {
+            const record = notionData.results[0];
+            const longUrl = record.properties["Long URL"].url; // Adjust field names if necessary
 
-            // Increment the Click Count
-            await fetch(`https://api.notion.com/v1/pages/${record.id}`, {
-                method: "PATCH",
-                headers: {
-                    "Authorization": `Bearer ${NOTION_API_KEY}`,
-                    "Notion-Version": "2022-06-28",
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    properties: {
-                        "Click Count": {
-                            number: clickCount + 1, // Increment the click count by 1
-                        },
-                    },
-                }),
-            });
-
-            // Redirect to the long URL
-            res.redirect(301, longUrl);
+            console.log(`Slug found: Redirecting to ${longUrl}`);
+            res.redirect(301, longUrl); // Redirect to the long URL
         } else {
+            console.log(`Slug "${slug}" not found: Redirecting to homepage`);
             res.redirect(301, "https://www.chadandmia.com"); // Redirect to homepage if slug not found
         }
     } catch (error) {
-        console.error("Error:", error);
-        res.status(500).json({ error: "Internal Server Error" });
+        console.error("Error querying Notion or handling slug:", error);
+        res.status(500).json({ error: "Internal Server Error" }); // Return a 500 error for server issues
     }
-};
+}
